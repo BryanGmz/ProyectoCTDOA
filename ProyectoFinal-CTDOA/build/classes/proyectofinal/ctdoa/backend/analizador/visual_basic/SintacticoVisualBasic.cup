@@ -1,0 +1,660 @@
+package proyectofinal.ctdoa.backend.analizador.visual_basic;
+
+import java_cup.runtime.*;
+import proyectofinal.ctdoa.backend.objetos.*;
+import proyectofinal.ctdoa.backend.manejadores.*;
+import java.util.ArrayList;
+import java.util.List;
+import proyectofinal.ctdoa.frontend.gui.FrameCTDOA;
+
+parser code {:
+
+    public ManejadorSintacticoVB_PY msVB_PY = ManejadorSintacticoVB_PY.getInstacia();
+    public ManejadorInstancias mi = ManejadorInstancias.getInstance();
+    public ManejadorCuartetos mc = ManejadorCuartetos.getInstancia();
+    public boolean and = false;
+    private FrameCTDOA frameCTDOA;
+
+    public SintacticoVisualBasic(LexicoVisualBasic lexer) { 
+        super(lexer);   
+        msVB_PY.setContadorLineas(0);
+        msVB_PY.nuevoAnalisis();
+    }
+
+    public void setFrameCTDOA(FrameCTDOA frameCTDOA) {
+        this.frameCTDOA = frameCTDOA;
+        this.msVB_PY.setFrameCTDOA(frameCTDOA);
+    }
+
+    public void setAccion(String tipo, String mensaje, String accion){
+        frameCTDOA.addErrores("ERROR Lexico Tipo: " + tipo + "\t Mensaje: " + mensaje + "\tAcción: ERROR\n");
+    }
+
+    @Override
+    public void syntax_error(Symbol s){
+        try {
+            frameCTDOA.addErrores(
+                    "\nError de Sintaxis: " 
+                    + "\n\tLinea #:\t\t\t\t\t<< " + (s.right + 1) + " >>"
+                    + "\n\tColumna #\t\t\t\t\t<< " + (s.left + 1) + " >>"
+                    + "\n\tToken NO Reconocido:\t\t\t\t<< " + (s.value) + " >>" );
+        } catch (Exception e) {
+            System.out.println("Error " + e.toString());
+        }
+    }
+:}
+    
+
+/* Terminales */
+
+terminal            CADENA, CARACTER;
+terminal            CONSOLA, CONSOLA_LINEA;
+terminal            INTEGER, DECIMAL, CHAR;
+terminal            MAS, MENOS, POR, DIV, MODULO;
+terminal            IGUAL, COMENTARIO;
+terminal            DISTINTO, MENOR, MAYOR, MENOR_IGUAL, MAYOR_IGUAL, NOT, AND, OR;
+terminal            AMPERSAND;
+terminal            DIM, AS, END, RETURN;
+terminal            WHILE, DO, UNTIL, LOOP, TO, STEP, FOR, NEXT;
+terminal            IF, THEN, ELSEIF, ELSE, SELECT, CASE, PUBLIC, FUNCTION, SUB;
+terminal            PARENTESIS_A, PARENTESIS_C, SALTO, COMA;
+terminal            IINPUT, FINPUT, CINPUT;
+terminal Integer    NUMERO;
+terminal float      REAL;
+terminal String     ID;
+
+/* No Terminales */
+
+non terminal inicio;
+non terminal saltos, estructura_fs, estructura_fs_p;
+non terminal return, return_dato;
+non terminal tipo_dato;
+non terminal operaciones_aritmeticas;
+non terminal operaciones_logicas, tipos_comparacion;
+non terminal concatenacion, case_p;
+non terminal mensaje_terminal, do_while_p;
+non terminal declaracion_variables, lista_ids, lista_id_p;
+non terminal asignacion_variables, asignacion;
+non terminal condicional, and, or;
+non terminal solicitud_datos, for_p;
+non terminal while, while_p, while_n, p_parentesis;
+non terminal do_while, until_while;
+non terminal for, var, step, ii, ie;
+non terminal if_linea, if_line, if_linea_p, if_m, else_m, if_else_mult, elseif, else_if_p;
+non terminal switch, switch_p, caso_else, cantidad_casos, caso, casos;
+non terminal estructuras, estructuras_p, estruct;
+non terminal function, condicional_or, condicional_not, condicional_and;
+non terminal sub, ee, sub_s, function_s;
+non terminal parametros, parametros_p;
+
+
+/* Precedencia */ 
+
+precedence left SALTO;
+precedence left ID;
+precedence left END;
+precedence left MAS, MENOS, AMPERSAND;
+precedence left POR, DIV, MODULO;
+precedence left PARENTESIS_A, PARENTESIS_C, COMA;
+precedence left IINPUT, FINPUT, CINPUT;
+precedence left DISTINTO;
+precedence left MENOR;
+precedence left MAYOR;
+precedence left MENOR_IGUAL;
+precedence left MAYOR_IGUAL;
+precedence left OR;
+precedence left AND;
+precedence left NOT;
+precedence left AS, ELSE, CASE;
+
+/* Gramaticas */
+
+start with inicio;
+
+/***********************  Principal **************************/
+
+inicio ::= 
+    estructura_fs_p:e             {:parser.mi.setClaseVB(parser.msVB_PY.claseVB(e));:}
+;
+
+/********************* Estructura Funciones ************************/
+
+estructura_fs ::=
+    function:e                                                          {:RESULT = e;:}
+    | sub:e                                                             {:RESULT = e;:}
+    | PUBLIC function:e                                                 {:RESULT = e;:}
+    | PUBLIC sub:e                                                      {:RESULT = e;:}
+    | error:e SUB                                    {:parser.syntax_error((Symbol) e);:} 
+    | error:e END FUNCTION                           {:parser.syntax_error((Symbol) e);:} 
+;
+
+estructura_fs_p ::=
+    estructura_fs:e                                     {: RESULT = e;:}
+    | estructura_fs_p:a saltos estructura_fs:e          {: RESULT = parser.msVB_PY.lista(a, e);:}
+    | estructura_fs_p:a saltos                          {: RESULT = a;:}
+    |
+;
+
+saltos ::=
+    SALTO 
+    | saltos SALTO 
+;
+
+/******************** Asignacion Return *****************************/
+
+return ::=
+    RETURN return_dato:e
+    {: 
+        if(e != null) {
+            parser.mc.returnCuarteto((Simbolo) e);
+            RESULT = new Simbolo(Constantes.RETURN_VAR, e);
+        } else {
+            RESULT = null;
+        }    
+    :}
+;
+
+return_dato ::=
+    CARACTER:e                              {:RESULT = new Simbolo(Constantes.CHAR_VAR_VB_PY, e);:}
+    | operaciones_aritmeticas:e             {:RESULT = e;:}
+;
+
+
+/********************* Tipos de Datos *******************************/
+
+tipo_dato ::=
+    INTEGER                     {:RESULT = Constantes.INT_VAR_VB_PY;:}
+    | DECIMAL                   {:RESULT = Constantes.FLOAT_VAR_VB_PY;:}
+    | CHAR                      {:RESULT = Constantes.CHAR_VAR_VB_PY;:}
+;
+
+/******************* Operaciones Aritmeticas ************************/
+
+operaciones_aritmeticas ::= 
+    operaciones_aritmeticas:a MAS operaciones_aritmeticas:e             {:RESULT = parser.msVB_PY.realizarOperaciones(a, e, aleft, aright, eleft, eright, 1);:}       
+    | operaciones_aritmeticas:a MENOS operaciones_aritmeticas:e         {:RESULT = parser.msVB_PY.realizarOperaciones(a, e, aleft, aright, eleft, eright, 2);:}
+    | operaciones_aritmeticas:a POR operaciones_aritmeticas:e           {:RESULT = parser.msVB_PY.realizarOperaciones(a, e, aleft, aright, eleft, eright, 3);:}
+    | operaciones_aritmeticas:a DIV operaciones_aritmeticas:e           {:RESULT = parser.msVB_PY.realizarOperaciones(a, e, aleft, aright, eleft, eright, 4);:}
+    | operaciones_aritmeticas:a MODULO operaciones_aritmeticas:e        {:RESULT = parser.msVB_PY.realizarOperaciones(a, e, aleft, aright, eleft, eright, 5);:}
+    | MENOS estruct:e                                                   {:RESULT = parser.msVB_PY.modificarVariables(e, eleft, eright);:}
+    | estruct:e                                                         {:RESULT = e;:} 
+;
+
+estruct ::=
+    PARENTESIS_A operaciones_aritmeticas:e PARENTESIS_C             {:RESULT = e;:}
+    | ID:e                                                          {:RESULT = parser.msVB_PY.metodoBuscarID(e.toString(), eleft, eright);:}
+    | NUMERO:e                                                      {:RESULT = new Simbolo(Constantes.INT_VAR_VB_PY, e);:}
+    | REAL:e                                                        {:RESULT = new Simbolo(Constantes.FLOAT_VAR_VB_PY, e);:}
+;
+
+/******************* Operaciones Logicas ***************************/
+operaciones_logicas ::=
+    tipos_comparacion:a IGUAL:c tipos_comparacion:e                     {:RESULT = parser.msVB_PY.comprobarOperacionesLogicas(a, e, 1, cleft, cright);:}
+    | tipos_comparacion:a DISTINTO:c tipos_comparacion:e                {:RESULT = parser.msVB_PY.comprobarOperacionesLogicas(a, e, 2, cleft, cright);:}
+    | tipos_comparacion:a MENOR:c tipos_comparacion:e                   {:RESULT = parser.msVB_PY.comprobarOperacionesLogicas(a, e, 3, cleft, cright);:}
+    | tipos_comparacion:a MENOR_IGUAL:c tipos_comparacion:e             {:RESULT = parser.msVB_PY.comprobarOperacionesLogicas(a, e, 4, cleft, cright);:}
+    | tipos_comparacion:a MAYOR:c tipos_comparacion:e                   {:RESULT = parser.msVB_PY.comprobarOperacionesLogicas(a, e, 5, cleft, cright);:}
+    | tipos_comparacion:a MAYOR_IGUAL:c tipos_comparacion:e             {:RESULT = parser.msVB_PY.comprobarOperacionesLogicas(a, e, 6, cleft, cright);:}
+;
+
+tipos_comparacion ::=
+    operaciones_aritmeticas:e                   {:RESULT = e;:}
+    | CARACTER:e                                {:RESULT = new Simbolo(Constantes.CHAR_VAR_VB_PY, e);:}
+;
+
+/****************** Condicionales **********************************/
+
+condicional ::=
+    condicional_or:e                                         {:parser.mc.nuevoAnalisisBoolean(); RESULT = e;:}
+;
+
+and ::=
+    AND             {:parser.mc.and(); parser.mc.condicionalAND(); parser.mc.escribirEtiqueta();:}
+;
+
+or ::=
+    OR              {:parser.mc.or(); parser.mc.condicionalOR(); if (!parser.mc.ultimoAgregadorEtiqueta()) {parser.mc.escribirEtiqueta();}:}
+;
+
+condicional_or ::= 
+    condicional_or:a or:c condicional_or:e                      {:RESULT = parser.msVB_PY.comprobacionCondicional(a, e, 2, cleft, cright);:}
+    | condicional_and:a                                         {:RESULT = a;:}
+;
+
+condicional_and ::= 
+    condicional_and:a and:c condicional_and:e                   {:RESULT = parser.msVB_PY.comprobacionCondicional(a, e, 1, cleft, cright);:}
+    | condicional_not:a                                         {:RESULT = a;:}
+;
+
+condicional_not ::=
+    NOT PARENTESIS_A operaciones_logicas:a PARENTESIS_C         {:parser.mc.gotoEscribir(); RESULT = parser.msVB_PY.comprobacionCondicional(a, true, 3, aleft, aright);:}
+    | operaciones_logicas:e                                     {:parser.mc.gotoEscribir(); RESULT = e;:}
+;
+
+/***************** Concatenacion **********************************/
+
+concatenacion ::=
+    concatenacion:a MAS concatenacion:e                         {:parser.msVB_PY.concatencacion(a, e);:}
+    | concatenacion:a AMPERSAND concatenacion:e                 {:parser.msVB_PY.concatencacion(a, e);:}
+    | CADENA:e                                                  {:parser.mc.imprimir(new Simbolo(null, "\"" + e + "\"")); RESULT = e;:}
+    | estruct:e                                                 {:parser.mc.imprimir((Simbolo) e); RESULT = e;:}
+;
+
+/******************* Mensaje en Pantalla ***************************/
+
+mensaje_terminal ::=
+    CONSOLA PARENTESIS_A concatenacion:e PARENTESIS_C                   {:RESULT = e;:}
+    | CONSOLA_LINEA PARENTESIS_A concatenacion:e PARENTESIS_C           {:parser.mc.imprimirNuevaLinea(); RESULT = e;:}
+;
+
+/***************** Declaracion de Variables ************************/
+
+declaracion_variables ::=
+    DIM lista_ids:e AS tipo_dato:a                          {:RESULT = parser.msVB_PY.declararVariasVariables((List<Simbolo>) e, (Tipo) a, eleft, eright);:}
+    | DIM ID:a AS tipo_dato:e                               {:RESULT = parser.msVB_PY.declaraUnaVariable(new Simbolo((Tipo) e, null, a), aleft, aright);:}
+    | DIM ID:a AS tipo_dato:e IGUAL asignacion:i            {:RESULT = parser.msVB_PY.declaraUnaVariableAsignacion((Tipo) e, i, a, aleft, aright);:}
+    | DIM asignacion_variables:a                            {:RESULT = parser.msVB_PY.declaraUnaVariable(a, aleft, aright);:}
+;
+
+lista_ids ::=
+    ID:e lista_id_p:a            
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                    listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if (e != null) {
+            listaSimbolos.add(new Simbolo(null, null, e));
+        }
+        RESULT = listaSimbolos;
+    :}    
+    //| ID:a                            {:RESULT = new Simbolo(null, null, a);:} 
+;
+
+lista_id_p ::=
+    COMA ID:a                       {:RESULT = new Simbolo(null, null, a);:} 
+    | lista_id_p:a COMA ID:e
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                    listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if (e != null) {
+            listaSimbolos.add(new Simbolo(null, null, e));
+        }
+        RESULT = listaSimbolos;
+    :}    
+;
+
+/******************* Asignacion de Variables ***********************/
+
+asignacion_variables ::=
+    ID:a IGUAL asignacion:e             
+    {:
+        if(e != null) {
+            RESULT = new Simbolo(((Simbolo) e).getTipo(), ((Simbolo) e), a);
+        } else { 
+            RESULT = e;
+        }
+    :}
+;
+
+asignacion ::=
+    return_dato:e                   {:RESULT = e;:}
+    | solicitud_datos:e             {:RESULT = e;:}
+;
+
+/***************** Solicitud de Datos ******************************/
+
+solicitud_datos ::=
+    IINPUT:e p_parentesis               {:RESULT = new Simbolo(Constantes.INT_VAR_VB_PY, 0, 1);:}
+    | FINPUT:e p_parentesis             {:RESULT = new Simbolo(Constantes.FLOAT_VAR_VB_PY, 0, 3);:}
+    | CINPUT:e p_parentesis             {:RESULT = new Simbolo(Constantes.CHAR_VAR_VB_PY, '\b', 2);:}
+;
+
+p_parentesis ::=
+    PARENTESIS_A CADENA:e PARENTESIS_C  {:parser.mc.imprimir(new Simbolo(null, e ));:}
+    | PARENTESIS_A PARENTESIS_C
+;
+
+/******************************** While ****************************/
+
+while_n ::=
+    WHILE               {:RESULT = new While(parser.mc.addWhile(), null);:}
+;
+
+while_p ::=
+    while_n:w condicional:a saltos          
+    {: 
+        parser.mc.nuevoAnalisisBoolean();
+        parser.mc.escribirEtiquetasInicio(false);
+        parser.mc.escribirEtiquetaFin();
+        ((While) w).setA(a); 
+        RESULT = w;
+    :}
+;
+
+while ::= 
+    while_p:a
+        estructuras_p:e
+    END WHILE                           
+    {:
+        RESULT = parser.msVB_PY.contruirEstructuraCiloDW(e, ((While) a).getA(), 1);
+        parser.mc.finWhile(((While) a).getIdEtiqueta());
+        parser.mc.imprimirResto();
+    :}
+;
+
+/****************************** Do While ****************************/
+
+do_while_p ::=
+    DO saltos               
+    {:
+        RESULT = parser.mc.addDoWhile();
+        parser.mc.nuevoAnalisisBoolean();
+    :}
+;
+
+do_while ::=
+    do_while_p:i
+        estructuras_p:e                   
+    LOOP until_while condicional:a      
+    {:
+        RESULT = parser.msVB_PY.contruirEstructuraCiloDW(e, a, 2);
+        parser.mc.escribirEtiquetasInicio(false);
+        parser.mc.escribirEtiquetaFin();
+        parser.mc.finDoWhile((String) i);
+        parser.mc.imprimirResto();
+    :}  
+;
+
+until_while ::=
+    UNTIL
+    | WHILE
+;
+
+/*************************** For ************************************/
+
+for_p ::=
+    FOR var:a TO operaciones_aritmeticas:e step:i saltos        {:RESULT = new For(a, e, i, parser.mc.addFor((Simbolo) a, (Simbolo) e, (Simbolo) i));:}
+;
+
+for ::=
+    for_p:x
+        estructuras_p:o
+    NEXT ID:u                                                 
+    {:
+        if(((For) x).getA() != null && ((For) x).getE() != null && ((For) x).getI() != null) {
+            if(parser.msVB_PY.comprobarIdFor(((For) x).getA(), u.toString(), uleft, uright)) {
+                RESULT = parser.msVB_PY.contruirEstructuraCiloDW(o, true, 3);
+            } else  {   
+                RESULT = parser.msVB_PY.contruirEstructuraCiloDW(o, null, 3);
+            } 
+        } else {
+            RESULT = parser.msVB_PY.contruirEstructuraCiloDW(o, null, 3);
+        } 
+        parser.mc.finFor(((For) x).getLista());
+        parser.mc.imprimirResto();
+        parser.msVB_PY.removerCualquierSimbolo(((For) x).getA());
+    :}
+;
+
+step ::=
+    STEP operaciones_aritmeticas:i                              {:RESULT = new Simbolo(null, i);:}
+    |                                                           {:RESULT = null;:}
+;
+
+var ::=
+    ID:a IGUAL operaciones_aritmeticas:i                            {:RESULT = parser.msVB_PY.comprobarAsignacionFor(i, a, aleft, aright, null);:}
+    | ID:a AS tipo_dato:e IGUAL operaciones_aritmeticas:i           {:RESULT = parser.msVB_PY.comprobarAsignacionFor(i, a, aleft, aright, (Tipo) e);:}
+;
+
+/*************************** if una linea ****************************/
+
+if_linea ::=
+    if_line:a if_linea_p:e                          {:RESULT = parser.msVB_PY.construirCondicionalIf(a, null, e);:}
+;
+
+if_line ::=
+    ii:a THEN estructuras:e                         {:RESULT = parser.msVB_PY.crearEstructuraCondicional(e, a, 1); parser.mc.imprimirResto();:}
+;
+
+if_linea_p ::=
+    ee estructuras:a            {:RESULT = parser.msVB_PY.crearEstructuraCondicional(a, false, 3); parser.mc.imprimirResto();:}
+    |                           {:RESULT = null;:}
+;
+
+
+/************************* if mult **********************************/
+
+if_m ::=
+    ii:e THEN saltos
+        estructuras_p:a                     {:RESULT = parser.msVB_PY.crearEstructuraCondicional(a, e, 1); parser.mc.imprimirResto();:}
+    | ii:e saltos 
+        estructuras_p:a                     {:RESULT = parser.msVB_PY.crearEstructuraCondicional(a, e, 1); parser.mc.imprimirResto();:}                   
+;
+
+else_m ::=
+    ee saltos estructuras_p:a               {:RESULT = parser.msVB_PY.crearEstructuraCondicional(a, false, 3); parser.mc.imprimirResto();:}             
+;
+
+ee ::=
+    ELSE                                    {:parser.mc.escribirEtiquetasInicio(false); parser.mc.escribirEtiquetaFin(); parser.mc.nuevoAnalisisBoolean();:}
+;
+
+ii ::=
+    IF condicional:e                        {:parser.mc.escribirEtiquetasInicio(false); parser.mc.escribirEtiquetaFin(); parser.mc.nuevoAnalisisBoolean(); RESULT = e;:}
+;
+
+if_else_mult ::=
+    if_m:a
+    else_if_p:e 
+    else_m:i
+    END IF                                  {:RESULT = parser.msVB_PY.construirCondicionalIf(a, e, i);:}
+    | if_m:a
+    else_if_p:e 
+    END IF                                  {:RESULT = parser.msVB_PY.construirCondicionalIf(a, e, null);:}
+;
+
+/************************* elseif **********************************/
+
+elseif ::=
+    ie:e THEN saltos 
+        estructuras_p:a                     {:RESULT = parser.msVB_PY.crearEstructuraCondicional(a, e, 2); parser.mc.imprimirResto();:}
+    | ie:e saltos 
+        estructuras_p:a                     {:RESULT = parser.msVB_PY.crearEstructuraCondicional(a, e, 2); parser.mc.imprimirResto();:}
+;
+
+ie ::=
+    ELSEIF condicional:e                    {:parser.mc.escribirEtiquetasInicio(false); parser.mc.escribirEtiquetaFin(); parser.mc.nuevoAnalisisBoolean(); RESULT = e;:}
+;
+
+else_if_p ::=
+    elseif:e else_if_p:a                        
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if(e != null) {
+            listaSimbolos.add((Simbolo) e);
+        }
+        RESULT = listaSimbolos;
+    :}
+    |                                           {:RESULT = null;:}
+;
+
+/*************************** switch *********************************/
+
+switch_p ::=
+    SELECT CASE operaciones_aritmeticas:a saltos            {:parser.mc.setEtiquetaSwitch((Simbolo) a); RESULT = a;:}
+;
+
+switch ::=
+    switch_p:a
+        cantidad_casos:e                                    
+    END SELECT                                              
+    {:
+        RESULT = parser.msVB_PY.crearCase(e, null, a, eleft, eright);
+        parser.mc.etqFinTurno();
+    :}
+    | switch_p:a
+        cantidad_casos:e
+        caso_else:i                                           
+        END SELECT                                          
+    {:
+        RESULT = parser.msVB_PY.crearCase(e, i, a, eleft, eright);
+        parser.mc.etqFinTurno();
+    :}
+;
+
+caso_else ::=
+    CASE ELSE saltos  
+        estructuras_p:a             
+    {:
+        parser.mc.etiquetaGoto();
+        RESULT = parser.msVB_PY.crearEstructuraCases(null, a, aleft, aright, true);
+    :}
+;
+
+cantidad_casos ::=
+    cantidad_casos:a caso:e 
+    {:
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                List<Simbolo> agregar = new ArrayList<>();  
+                agregar.add((Simbolo) a);
+                if(e != null) {
+                    agregar.add((Simbolo) e);
+                } RESULT = agregar;
+            } else {
+                ((List<Simbolo>) a).add(((Simbolo) e));
+            }
+        } else {
+            if(e != null) {
+                List<Simbolo> agregar = new ArrayList<>();  
+                agregar.add((Simbolo) e);
+                RESULT = agregar;
+            }
+        }
+    :}
+    | caso:e                          {:RESULT = e;:}
+;
+
+case_p ::=
+    CASE casos:a saltos             {:parser.mc.condicional((Simbolo) a); RESULT = a;:}
+;
+
+caso ::= 
+    case_p:a
+    estructuras_p:e                 
+    {:
+        RESULT = parser.msVB_PY.crearEstructuraCases(a, e, aleft, aright, false);
+        parser.mc.finCadaCaso();
+    :}
+;
+    
+casos ::=
+    operaciones_aritmeticas:a       {:RESULT = a;:}
+; 
+
+/**************************** function ********************************/
+
+function_s ::=
+    FUNCTION ID:u PARENTESIS_A parametros:e PARENTESIS_C AS tipo_dato:a saltos      
+    {:parser.mc.addCuartetoProcedimiento(2, u, "VB", e, (Tipo) a); RESULT = new Procedimiento(u, e, (Tipo) a);:}
+;
+
+function ::=
+    function_s:e
+        estructuras_p:i
+        return:o saltos
+    END FUNCTION                                                                    
+    {:RESULT = parser.msVB_PY.funcion(((Procedimiento) e).getE(), ((Procedimiento) e).getA(), i, o, ((Procedimiento) e).getU(), oleft, oright); parser.mc.finProcedimiento(false);:}
+;
+
+/****************************** sub **********************************/
+
+sub_s ::=
+    SUB ID:i PARENTESIS_A parametros:e PARENTESIS_C saltos      
+    {:parser.mc.addCuartetoProcedimiento(2, i, "VB", e, null); RESULT = new Procedimiento(i, e);:}
+;
+
+sub ::=
+    sub_s:e
+        estructuras_p:a
+    END SUB                                                       
+    {:RESULT = parser.msVB_PY.metodos(((Procedimiento) e).getE(), a, ((Procedimiento) e).getU(), eleft, eright); parser.mc.finProcedimiento(false);:}
+;   
+
+parametros ::= 
+    ID:a AS tipo_dato:e                     {:RESULT = parser.msVB_PY.declaraUnaVariableParametro((Tipo) e, a, eleft, eright);:}
+    | ID:i AS tipo_dato:e parametros_p:a 
+    {:
+        Simbolo s = parser.msVB_PY.declaraUnaVariableParametro((Tipo) e, i, ileft, iright);
+        List<Simbolo> lista = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                lista.add((Simbolo) a);
+            } else {
+                lista = ((List<Simbolo>) a);
+            }
+        }   
+        if (s != null) {
+            lista.add(s);
+        } RESULT = lista;
+    :}
+    |                                       {:RESULT = new ArrayList<>();:}
+;
+
+parametros_p ::=
+    COMA ID:a AS tipo_dato:e
+    | parametros_p:a COMA ID:i AS tipo_dato:e
+    {:
+        Simbolo s = parser.msVB_PY.declaraUnaVariableParametro((Tipo) e, i, ileft, iright);
+        List<Simbolo> lista = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                lista.add((Simbolo) a);
+            } else {
+                lista = ((List<Simbolo>) a);
+            }
+        }   
+        if (s != null) {
+            lista.add(s);
+        } RESULT = lista;
+    :}
+;
+
+estructuras ::=
+    mensaje_terminal                    
+    | solicitud_datos                   
+    | declaracion_variables:e           {:RESULT = e;:}
+    | asignacion_variables:e            {:parser.msVB_PY.asignacionVariables(e, eleft, eright);:}
+    | while:e                           {:RESULT = e;:}
+    | do_while:e                        {:RESULT = e;:}
+    | for:e                             {:RESULT = e;:}
+    | if_linea:e                        {:RESULT = e;:}
+    | if_else_mult:e                    {:RESULT = e;:}
+    | switch:e                          {:RESULT = e;:}
+    | error:e saltos                                {:parser.syntax_error((Symbol) e);:} 
+    | error:e END IF                                {:parser.syntax_error((Symbol) e);:} 
+    | error:e END WHILE                             {:parser.syntax_error((Symbol) e);:} 
+;
+
+estructuras_p ::=
+    estructuras:e saltos estructuras_p:a        {:RESULT = parser.msVB_PY.retornarEstructuras(e, a);:} 
+    | estructuras:e saltos                      {:RESULT = e;:}
+;

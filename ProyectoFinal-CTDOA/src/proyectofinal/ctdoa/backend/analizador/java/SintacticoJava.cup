@@ -1,0 +1,744 @@
+package proyectofinal.ctdoa.backend.analizador.java;
+
+import java_cup.runtime.*;
+import proyectofinal.ctdoa.backend.objetos.*;
+import proyectofinal.ctdoa.backend.manejadores.*;
+import java.util.ArrayList;
+import java.util.List;
+import proyectofinal.ctdoa.frontend.gui.FrameCTDOA;
+
+parser code {:
+
+    public ManejadorSintacticoJP msJP = ManejadorSintacticoJP.getInstacia();
+    public ManejadorInstancias mi = ManejadorInstancias.getInstance();
+    public ManejadorCuartetos mc = ManejadorCuartetos.getInstancia();
+    public int contadorLineas;
+    private FrameCTDOA frameCTDOA;
+
+    public SintacticoJava(LexicoJava lexer) { 
+        super(lexer);   
+        msJP.nuevoAnalisis();
+    }
+
+    public void setContadorLineas(int contadorLineas){
+        this.contadorLineas = contadorLineas;
+        msJP.setContadorLineas(contadorLineas);
+    }
+
+    public void setFrameCTDOA(FrameCTDOA frameCTDOA) {
+        this.frameCTDOA = frameCTDOA;
+        msJP.setFrameCTDOA(frameCTDOA);
+    }
+
+    public void setAccion(String tipo, String mensaje, String accion){
+        frameCTDOA.addErrores("ERROR Lexico Tipo: " + tipo + "\t Mensaje: " + mensaje + "\tAcción: ERROR\n");
+    }
+
+    @Override
+    public void syntax_error(Symbol s){
+        try {
+            frameCTDOA.addErrores(
+                    "\nError de Sintaxis: " 
+                    + "\n\tLinea #:\t\t\t\t\t<< " + (s.right + 1) + " >>"
+                    + "\n\tColumna #\t\t\t\t\t<< " + (s.left + 1) + " >>"
+                    + "\n\tToken NO Reconocido:\t\t\t\t<< " + (s.value) + " >>" );
+        } catch (Exception e) {
+            System.out.println("Error " + e.toString());
+        }
+    }
+:}
+    
+
+/* Terminales */
+
+terminal            CADENA, CARACTER;
+terminal            CONSOLA, THIS, PUNTO;
+terminal            INT, FLOAT, CHAR;
+terminal            MAS, MENOS, POR, DIV, MOD;
+terminal            IGUAL, DOS_PUNTOS;
+terminal            IGUAL_IGUAL, DIFERENTE, MENOR, MAYOR, MENOR_IGUAL, MAYOR_IGUAL, NOT, AND, OR;
+terminal            WHILE, DO, BREAK, FOR, IF, ELSE_IF, ELSE, SWITCH, DEFAULT, RETURN, CASE, PUBLIC, VOID, CLASS;
+terminal            MAS_MAS, MENOS_MENOS, PUNTO_COMA, COMA, CORCHETE_A, CORCHETE_C, PARENTESIS_A, PARENTESIS_C;
+terminal            IINPUT, FINPUT, CINPUT, CONSOLA_LINEA;
+terminal Integer    NUMERO;
+terminal float      REAL;
+terminal String     ID;
+
+/* No Terminales */ 
+
+non terminal inicio;
+non terminal clases, clases_p;
+non terminal estructura_mf, estructura_mf_p;
+non terminal return, return_dato, metodos_p;
+non terminal tipo_dato, p_parentesis, constructor_p;
+non terminal operaciones_aritmeticas, estruct_op;
+non terminal operaciones_asignacion;
+non terminal operaciones_logicas, tipos_comparacion;
+non terminal condicional, condicional_or, condicional_and, condicional_not;
+non terminal concatenacion, and, or, declaracion_variables_g;
+non terminal mensaje_terminal, funcion_p;
+non terminal declaracion_variables, lista_id_valores, lista_id_p, lista_ids;
+non terminal asignacion_variables, asignacion;
+non terminal solicitud_datos, clases_s;
+non terminal while, while_n, while_p;
+non terminal do_while, do_while_p, asignacion_variables_d ;
+non terminal for, var, for_var, for_condicional, for_asignacion;
+non terminal if, else, else_if, else_if_p;
+non terminal estructura_if, ii, ie, ee, switch_p;
+non terminal switch, caso_default, cantidad_casos, caso, caso_p;
+non terminal funcion, parametros, parametros_p, metodos, contructor;
+non terminal estructuras_p, estructuras, variables_locales, estruct;
+
+precedence left PUNTO_COMA;
+precedence left MAS, MENOS;
+precedence left POR, DIV, MOD;
+precedence left PARENTESIS_A, PARENTESIS_C;
+precedence left OR;
+precedence left AND;
+precedence left NOT;
+precedence left ELSE;
+precedence left ELSE_IF;
+precedence left IF;
+
+/* Gramaticas */ 
+
+start with inicio;
+
+inicio ::=
+    clases_p:e              {:parser.mi.addClasesJava(e);:}
+;
+
+/*************************************** Clases ***************************************/
+
+clases_s ::=
+    PUBLIC CLASS ID:a CORCHETE_A                {:RESULT = a; parser.mc.addClaseActual(a);:}
+;
+
+clases ::=
+    clases_s:a
+        variables_locales:e
+        contructor:i
+        estructura_mf_p:o
+    CORCHETE_C                                  
+    {:RESULT = parser.msJP.claseJava((String) a, e, (Simbolo) i, o, aleft, aright); parser.mc.finClase();:}
+    | clases_s:a
+        variables_locales:e
+        estructura_mf_p:i
+    CORCHETE_C                                  
+    {:RESULT = parser.msJP.claseJava((String) a, e, null, i, aleft, aright); parser.mc.finClase();:}
+    | error:e CORCHETE_C                                    {:parser.syntax_error((Symbol) e);:}    
+;
+
+clases_p ::=
+    clases:e clases_p:a
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if(e != null) {
+            listaSimbolos.add((Simbolo) e);
+        }
+        RESULT = listaSimbolos;
+    :}    
+    |                                                       {:RESULT = new ArrayList<>();:} 
+;
+
+constructor_p ::=
+    PUBLIC ID:a PARENTESIS_A parametros:e PARENTESIS_C CORCHETE_A
+    {:parser.mc.addCuartetoProcedimientoJava(a, "JAVA", e, null); 
+    RESULT = new Procedimiento(a, e);:}
+;
+
+contructor ::=
+    constructor_p:e
+        estructuras_p:c
+    CORCHETE_C     
+    {:RESULT = parser.msJP.metodos(((Procedimiento) e).getE(), c, ((Procedimiento) e).getU(), eleft, eright);
+    parser.mc.finProcedimiento(false);:}
+;
+
+/***************************** Declaracion de Variables Locales ***********************/
+
+variables_locales ::=
+    variables_locales:a estruct:e
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if(e != null) {
+            listaSimbolos.add((Simbolo) e);
+        }
+        RESULT = listaSimbolos;
+    :}    
+    |                                                       {:RESULT = null;:} 
+;
+
+estruct ::=
+    PUBLIC declaracion_variables_g:a PUNTO_COMA               {:RESULT = a;:}
+    | declaracion_variables_g:a PUNTO_COMA                    {:RESULT = a;:}
+    | error:e PUNTO_COMA                    {:parser.syntax_error((Symbol) e);:}    
+;
+
+/********************************** Metodos y Funciones *******************************/
+
+estructura_mf ::=
+    metodos:e                           {:RESULT = e;:}
+    | funcion:e                         {:RESULT = e;:}
+    | error:e CORCHETE_C                {:parser.syntax_error((Symbol) e);:}        
+;
+
+estructura_mf_p ::=
+    estructura_mf:e estructura_mf_p:a 
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if(e != null) {
+            listaSimbolos.add((Simbolo) e);
+        }
+        RESULT = listaSimbolos;
+    :}    
+    |                                   {:RESULT = null;:}
+;   
+
+/******************************** Asignacion Return ***********************************/
+
+return ::=
+    RETURN return_dato:e                    
+    {: 
+        if(e != null) {
+            parser.mc.returnCuarteto((Simbolo) e);
+            RESULT = parser.msJP.agregarCualquierSimbolo(new Simbolo(Constantes.RETURN_VAR, e));
+        } else {
+            RESULT = null;
+        }    
+    :}
+;
+
+return_dato ::=
+    | CARACTER:a                            
+    {:  
+	RESULT = new Simbolo(Constantes.CHAR_VAR_PJ, a);
+    :}
+    | operaciones_aritmeticas:e             {:RESULT = e;:}
+;
+
+/************************************ Tipo de Dato ************************************/
+
+tipo_dato ::=
+    INT                 {:RESULT = Constantes.INT_VAR_PJ;:}
+    | FLOAT             {:RESULT = Constantes.FLOAT_VAR_PJ;:}
+    | CHAR              {:RESULT = Constantes.CHAR_VAR_PJ;:}
+;
+
+/******************************* Operaciones Aritmeticas ******************************/
+
+operaciones_aritmeticas ::= 
+    operaciones_aritmeticas:a MAS operaciones_aritmeticas:e                     {:RESULT = parser.msJP.realizarOperaciones(a, e, aleft, aright, eleft, eright, 1);:}
+    | operaciones_aritmeticas:a MENOS operaciones_aritmeticas:e                 {:RESULT = parser.msJP.realizarOperaciones(a, e, aleft, aright, eleft, eright, 2);:}
+    | operaciones_aritmeticas:a POR operaciones_aritmeticas:e                   {:RESULT = parser.msJP.realizarOperaciones(a, e, aleft, aright, eleft, eright, 3);:}
+    | operaciones_aritmeticas:a DIV operaciones_aritmeticas:e                   {:RESULT = parser.msJP.realizarOperaciones(a, e, aleft, aright, eleft, eright, 4);:}
+    | operaciones_aritmeticas:a MOD operaciones_aritmeticas:e                   {:RESULT = parser.msJP.realizarOperaciones(a, e, aleft, aright, eleft, eright, 5);:}
+    | MENOS estruct_op:e                                                        {:RESULT = parser.msJP.modificarVariables(e, eleft, eright);:}
+    | estruct_op:e                                                              {:RESULT = e;:}
+;
+
+estruct_op ::=
+    PARENTESIS_A operaciones_aritmeticas:e PARENTESIS_C             {:RESULT = e;:}
+    | ID:e                                                          {:RESULT = parser.msJP.metodoBuscarID(e.toString(), eleft, eright);:}
+    | NUMERO:e                                                      {:RESULT = new Simbolo(Constantes.INT_VAR_VB_PY, e);:}
+    | REAL:e                                                        {:RESULT = new Simbolo(Constantes.FLOAT_VAR_VB_PY, e);:}
+;
+
+/************************** Operaciones de Asignacion *********************************/
+
+operaciones_asignacion ::=
+    ID:a IGUAL operaciones_aritmeticas:e            
+     {:
+        Simbolo nuevo;
+        if(e != null) {
+            nuevo = new Simbolo(((Simbolo) e).getTipo(), e, a);
+        } else { 
+            nuevo = null;
+        }
+        RESULT = nuevo;
+    :}
+    | ID:a MAS_MAS                  {:RESULT = (new Simbolo(Constantes.INT_VAR_PJ, -1, a));:}
+    | ID:a MENOS_MENOS              {:RESULT = (new Simbolo(Constantes.INT_VAR_PJ, -2, a));:}
+;
+
+/***************************** Operaciones Logicas ************************************/
+
+operaciones_logicas ::=
+    tipos_comparacion:a IGUAL_IGUAL:c tipos_comparacion:e                       {:RESULT = parser.msJP.comprobarOperacionesLogicas(a, e, 1, cleft, cright);:}
+    | tipos_comparacion:a DIFERENTE:c tipos_comparacion:e                       {:RESULT = parser.msJP.comprobarOperacionesLogicas(a, e, 2, cleft, cright);:} 
+    | tipos_comparacion:a MENOR:c tipos_comparacion:e                           {:RESULT = parser.msJP.comprobarOperacionesLogicas(a, e, 3, cleft, cright);:} 
+    | tipos_comparacion:a MENOR_IGUAL:c tipos_comparacion:e                     {:RESULT = parser.msJP.comprobarOperacionesLogicas(a, e, 4, cleft, cright);:}
+    | tipos_comparacion:a MAYOR:c tipos_comparacion:e                           {:RESULT = parser.msJP.comprobarOperacionesLogicas(a, e, 5, cleft, cright);:}
+    | tipos_comparacion:a MAYOR_IGUAL:c tipos_comparacion:e                     {:RESULT = parser.msJP.comprobarOperacionesLogicas(a, e, 6, cleft, cright);:}
+;
+
+tipos_comparacion ::=
+    operaciones_aritmeticas:a               {:RESULT = a;:}
+    | CARACTER:a                            
+    {:  
+	RESULT = new Simbolo(Constantes.CHAR_VAR_PJ, a);
+    :}
+;
+
+/********************************** Condicionales *************************************/
+
+condicional ::=
+    condicional_or:e                                        {:parser.mc.nuevoAnalisisBoolean(); RESULT = e;:}
+;
+
+and ::=
+    AND             {:parser.mc.and(); parser.mc.condicionalAND(); parser.mc.escribirEtiqueta();:}
+;
+
+or ::=
+    OR              {:parser.mc.or(); parser.mc.condicionalOR(); if (!parser.mc.ultimoAgregadorEtiqueta()) { parser.mc.escribirEtiqueta();}:}
+;
+
+condicional_or ::=
+    condicional_or:a or:c condicional_or:e                      {:RESULT = parser.msJP.comprobacionCondicional(a, e, 2, cleft, cright);:}
+    | condicional_and:a                                         {:RESULT = a;:}
+;
+
+condicional_and ::= 
+    condicional_and:a and:c condicional_and:e                   {:RESULT = parser.msJP.comprobacionCondicional(a, e, 1, cleft, cright);:}
+    | condicional_not:a                                         {:RESULT = a;:}
+;
+
+condicional_not ::=
+    NOT PARENTESIS_A operaciones_logicas:a PARENTESIS_C         {:parser.mc.gotoEscribir(); RESULT = parser.msJP.comprobacionCondicional(a, true, 3, aleft, aright);:}
+    | operaciones_logicas:e                                     {:parser.mc.gotoEscribir(); RESULT = e;:}
+;
+
+/********************************** Concatenacion *************************************/
+
+concatenacion ::=
+    concatenacion MAS concatenacion
+    | CADENA:e                                  {:parser.mc.imprimir(new Simbolo(null, e)); RESULT = e;:}
+    | estruct:e                                 {:parser.mc.imprimir((Simbolo) e); RESULT = e;:}
+;
+
+/******************************** Mensaje en Pantalla *********************************/
+
+mensaje_terminal ::=
+    CONSOLA PARENTESIS_A concatenacion:e PARENTESIS_C           {:RESULT = e;:}
+    | CONSOLA_LINEA PARENTESIS_A concatenacion:e PARENTESIS_C     {:parser.mc.imprimirNuevaLinea(); RESULT = e;:}
+;
+
+/***************************** Declaracion de Variables *******************************/
+
+declaracion_variables_g ::=
+    tipo_dato:a lista_ids:e                     {:RESULT = parser.msJP.declararVariablesGlobales(new Simbolo((Tipo)a, e), aleft, aright);:}   
+;
+
+declaracion_variables ::=
+    //Estoy retornando el identificador y la lista de simbolos para poder agregarlo despues
+    tipo_dato:a lista_ids:e                                 {:RESULT = parser.msJP.declararVariables(new Simbolo((Tipo)a, e), aleft, aright);:}
+;
+
+lista_id_valores ::=
+    asignacion_variables_d:e                                  {:RESULT = e;:} 
+    | ID:a                                                  {:RESULT = new Simbolo(null, null, a.toString());:}
+;
+
+lista_ids ::=
+    lista_id_valores:e                                      {:RESULT = e;:}
+    | lista_id_valores:e lista_id_p:a   
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if(e != null) {
+            listaSimbolos.add((Simbolo) e);
+        }
+        RESULT = listaSimbolos;
+    :}    
+;
+
+lista_id_p ::=
+    COMA lista_id_valores:e                             {:RESULT = e;:}
+    | lista_id_p:a COMA lista_id_valores:e              
+    {:
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(a != null) {
+            if(a instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) a);
+            } else {
+                listaSimbolos = (List<Simbolo>) a;
+            }
+        }
+        if(e != null) {
+            listaSimbolos.add((Simbolo) e);
+        }
+        RESULT = listaSimbolos;
+    :}    
+;
+
+/***************************** Asignacion de Variables ********************************/
+
+asignacion_variables_d ::=
+    ID:a IGUAL asignacion:e     
+    {:
+        if(e != null) {
+            RESULT = new Simbolo(((Simbolo) e).getTipo(), ((Simbolo) e), a);
+        } else { 
+            RESULT = e;
+        }
+    :}
+;
+
+asignacion_variables ::=
+    ID:a IGUAL asignacion:e
+    {:
+        if(e != null) {      
+            parser.msJP.asignacionVariables(new Simbolo(((Simbolo) e).getTipo(), ((Simbolo) e), a), aleft, aright);
+        } else { 
+            parser.msJP.asignacionVariables(null, aleft, aright);
+        }
+    :}
+;
+
+asignacion ::=
+    return_dato:e               {:RESULT = e;:}
+    | solicitud_datos:e         {:RESULT = e;:} 
+;
+
+/******************************* Solicitud de Datos ***********************************/
+
+solicitud_datos ::=
+    IINPUT:e p_parentesis               {:RESULT = new Simbolo(Constantes.INT_VAR_VB_PY, 0, 1);:}
+    | FINPUT:e p_parentesis             {:RESULT = new Simbolo(Constantes.FLOAT_VAR_VB_PY, 0, 3);:}
+    | CINPUT:e p_parentesis             {:RESULT = new Simbolo(Constantes.CHAR_VAR_VB_PY, '\b', 2);:}
+;
+
+p_parentesis ::=
+    PARENTESIS_A CADENA:e PARENTESIS_C      {:parser.mc.imprimir(new Simbolo(null, e));:}
+    | PARENTESIS_A PARENTESIS_C
+;
+
+/************************************* While ******************************************/
+
+while_n ::=
+    WHILE                               {:RESULT = new While(parser.mc.addWhile(), null);:}
+;
+
+while_p ::=
+    while_n:w PARENTESIS_A condicional:a PARENTESIS_C CORCHETE_A
+    {:
+        parser.mc.nuevoAnalisisBoolean();
+        parser.mc.escribirEtiquetasInicio(false);
+        parser.mc.escribirEtiquetaFin();
+        ((While) w).setA(a);
+        RESULT = w;
+    :}
+;
+
+while ::= 
+    while_p:a
+        estructuras_p:e
+    CORCHETE_C                      
+    {:
+        RESULT = parser.msJP.contruirEstructuraCiloDW(e, ((While) a).getA(), 1);
+        parser.mc.finWhile(((While) a).getIdEtiqueta());
+        parser.mc.imprimirResto();
+    :}
+;
+
+/*********************************** Do While *****************************************/
+
+do_while_p ::=
+    DO CORCHETE_A
+    {:
+        RESULT = parser.mc.addDoWhile();
+        parser.mc.nuevoAnalisisBoolean();
+    :}
+;
+
+do_while ::=
+    do_while_p:i
+        estructuras_p:e
+    CORCHETE_C WHILE PARENTESIS_A condicional:a PARENTESIS_C PUNTO_COMA  
+    {:
+        RESULT = parser.msJP.contruirEstructuraCiloDW(e, a, 2);
+        parser.mc.escribirEtiquetasInicio(false);
+        parser.mc.escribirEtiquetaFin();
+        parser.mc.finDoWhile((String) i);
+        parser.mc.imprimirResto();
+    :}
+;
+
+/************************************* For ********************************************/
+
+for_var ::=
+    FOR PARENTESIS_A var:a PUNTO_COMA           {:RESULT = new For(a, parser.mc.addForJPV((Simbolo) a));:}
+;
+
+for_condicional ::=
+    for_var:a condicional:e PUNTO_COMA 
+    {: 
+        ((For) a).setE(e);
+        parser.mc.etiqueta();
+        RESULT = a;
+    :}
+;
+
+for_asignacion ::=
+    for_condicional:a operaciones_asignacion:i PARENTESIS_C CORCHETE_A
+    {:
+        For f = (For) a;
+        f.setI(i);
+        RESULT = parser.mc.addForJPA(f, (Simbolo) i);
+    :}
+;
+
+for ::=
+    for_asignacion:a
+        estructuras_p:o
+    CORCHETE_C
+    {:
+        if(((For) a).getA() != null && ((For) a).getE() != null && ((For) a).getI() != null) {
+            RESULT = parser.msJP.contruirEstructuraCiloDW(o, true, 3);
+        } else {
+            RESULT = parser.msJP.contruirEstructuraCiloDW(o, null, 3);;
+        }
+        parser.mc.actualizar();
+        parser.mc.imprimirResto();
+        parser.msJP.removerCualquierSimbolo(((For) a).getA());
+    :}
+;
+
+var ::=
+    ID:a IGUAL operaciones_aritmeticas:e                    {:RESULT = parser.msJP.comprobarAsignacionFor(e, a, aleft, aright, null);:}
+    | tipo_dato:a ID:e IGUAL return_dato:i                  {:RESULT = parser.msJP.comprobarAsignacionFor(i, e, eleft, eright, (Tipo) a);:}    
+;
+
+/****************************** estructuras if ****************************************/
+
+ii ::=
+    IF PARENTESIS_A condicional:e PARENTESIS_C CORCHETE_A
+    {:parser.mc.escribirEtiquetasInicio(false); parser.mc.escribirEtiquetaFin(); parser.mc.nuevoAnalisisBoolean(); RESULT = e;:}
+;
+  
+ie ::=
+    ELSE_IF PARENTESIS_A condicional:e PARENTESIS_C CORCHETE_A
+    {:parser.mc.escribirEtiquetasInicio(false); parser.mc.escribirEtiquetaFin(); parser.mc.nuevoAnalisisBoolean(); RESULT = e;:}
+;
+
+ee ::=
+    ELSE CORCHETE_A
+    {:parser.mc.escribirEtiquetasInicio(false); parser.mc.escribirEtiquetaFin(); parser.mc.nuevoAnalisisBoolean(); :}
+;
+
+/************************************ if **********************************************/
+
+if ::=
+    ii:a
+        estructuras_p:e
+    CORCHETE_C                                                      
+    {:RESULT = parser.msJP.crearEstructuraCondicional(e, a, 1); parser.mc.imprimirResto();:}
+;
+
+/*********************************** else *********************************************/
+
+else ::=
+    ee
+        estructuras_p:e
+    CORCHETE_C                                                      
+    {:RESULT = parser.msJP.crearEstructuraCondicional(e, false, 3); parser.mc.imprimirResto();:}   
+;
+
+/********************************* else if ********************************************/
+
+else_if ::=
+    ie:a
+        estructuras_p:e
+    CORCHETE_C                                                      
+    {:RESULT = parser.msJP.crearEstructuraCondicional(e, a, 2); parser.mc.imprimirResto();:}
+;
+
+else_if_p ::=
+    else_if:e else_if_p:a                   {:RESULT = parser.msJP.lista(a, e);:}
+    | 
+;
+
+/************************** estructura condicional if *********************************/
+
+estructura_if ::=
+    if:a else_if_p:e                        {:RESULT = parser.msJP.construirCondicionalIf(a, e, null);:}
+    | if:a else_if_p:e else:i               {:RESULT = parser.msJP.construirCondicionalIf(a, e, i);:}
+;
+
+/********************************** switch ********************************************/
+
+switch_p ::=
+    SWITCH PARENTESIS_A return_dato:a PARENTESIS_C CORCHETE_A      {:parser.mc.setEtiquetaSwitch((Simbolo) a); RESULT = a;:}
+;
+
+switch ::=
+    switch_p:a
+        cantidad_casos:e 
+        caso_default:i 
+    CORCHETE_C                                              
+    {:
+        RESULT = parser.msJP.crearCase(e, i, a, eleft, eright);
+        parser.mc.etqFinTurno();
+    :}
+;
+
+caso_default ::=
+    DEFAULT DOS_PUNTOS
+        estructuras_p:a
+        BREAK PUNTO_COMA                
+    {:  
+        parser.mc.etiquetaGoto();
+        RESULT = parser.msJP.crearEstructuraCases(null, a, aleft, aright, true);
+    :}
+    |   {:parser.mc.etiquetaGoto();:}
+;
+
+cantidad_casos ::=
+    caso:e                      {:RESULT = e;:} 
+    | caso:e  
+    cantidad_casos:a            {:RESULT = parser.msJP.lista(a, e);:} 
+;
+
+caso_p ::= 
+    CASE return_dato:a DOS_PUNTOS           {:parser.mc.condicional((Simbolo) a); RESULT = a;:}
+;
+
+caso ::= 
+    caso_p:a
+        estructuras_p:e
+        BREAK PUNTO_COMA
+    {:
+        RESULT = parser.msJP.crearEstructuraCases(a, e, aleft, aright, false);
+        parser.mc.finCadaCaso();
+    :}
+    | caso_p:a
+        estructuras_p:e
+    {:
+        RESULT = parser.msJP.crearEstructuraCases(a, e, aleft, aright, false);
+        parser.mc.finCadaCaso();
+    :}
+;
+
+/********************************** funcion *******************************************/
+
+funcion_p ::=
+    PUBLIC tipo_dato:a ID:e PARENTESIS_A parametros:i PARENTESIS_C CORCHETE_A   
+    {:parser.mc.addCuartetoProcedimientoJava(e, "JAVA", i, (Tipo) a);
+    RESULT = new Procedimiento(e, i, (Tipo) a);:}
+;
+
+funcion ::= 
+    funcion_p:e
+        estructuras_p:o
+    CORCHETE_C                                              
+    {:
+        RESULT = parser.msJP.funcion(((Procedimiento) e).getE(), ((Procedimiento) e).getA(), o, null, ((Procedimiento) e).getU(), oleft, oright);
+        parser.mc.finProcedimiento(false);
+    :}
+;
+
+parametros ::=
+    tipo_dato:e ID:a                                        {:RESULT = parser.msJP.declaraUnaVariableParametro((Tipo) e, a, aleft, aright);:}
+    | tipo_dato:e ID:a parametros_p:i 
+    {:
+        Simbolo s = parser.msJP.declaraUnaVariableParametro((Tipo) e, a, aleft, aright);
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(i != null) {
+            if(i instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) i);
+            } else {
+                listaSimbolos = (List<Simbolo>) i;
+            }
+        }
+        if(s != null) {
+            listaSimbolos.add((Simbolo) s);
+        }
+        RESULT = listaSimbolos;
+    :}
+    |                                                       {:RESULT = new ArrayList<>();:}
+;
+
+parametros_p ::= 
+    COMA tipo_dato:e ID:a                                     {:RESULT = parser.msJP.declaraUnaVariableParametro((Tipo) e, a, aleft, aright);:}
+    | parametros_p:i COMA tipo_dato:e ID:a
+    {:
+        Simbolo s = parser.msJP.declaraUnaVariableParametro((Tipo) e, a, aleft, aright);
+        List<Simbolo> listaSimbolos = new ArrayList<>();
+        if(i != null) {
+            if(i instanceof Simbolo) {
+                listaSimbolos.add((Simbolo) i);
+            } else {
+                listaSimbolos = (List<Simbolo>) i;
+            }
+        }
+        if(s != null) {
+            listaSimbolos.add((Simbolo) s);
+        }
+        RESULT = listaSimbolos;
+    :}
+;
+
+/********************************** metodos ********************************************/
+
+metodos_p ::=
+    PUBLIC VOID ID:a PARENTESIS_A parametros:e PARENTESIS_C CORCHETE_A
+    {:parser.mc.addCuartetoProcedimientoJava(a, "JAVA", e, null); 
+    RESULT = new Procedimiento(a, e);:}
+;
+
+metodos ::= 
+    metodos_p:e
+        estructuras_p:i                                     
+    CORCHETE_C                    
+    {:RESULT = parser.msJP.metodos(((Procedimiento) e).getE(), i, ((Procedimiento) e).getU(), ileft, iright);
+    parser.mc.finProcedimiento(false);:}
+;
+
+estructuras ::=
+    mensaje_terminal PUNTO_COMA                                                 {:RESULT = null;:}
+    | solicitud_datos PUNTO_COMA                                                {:RESULT = null;:}
+    | declaracion_variables:a PUNTO_COMA                                        {:RESULT = a;:}
+    | asignacion_variables:e PUNTO_COMA                                         {:RESULT = e;:}
+    | while:e                                                                   {:RESULT = e;:}
+    | do_while:e                                                                {:RESULT = e;:}
+    | for:e                                                                     {:RESULT = e;:}
+    | estructura_if:e                                                           {:RESULT = e;:}
+    | switch:e                                                                  {:RESULT = e;:}
+    | return:e PUNTO_COMA                                                       {:RESULT = e;:}
+    | THIS PUNTO ID:a IGUAL asignacion:e PUNTO_COMA                             {:parser.msJP.asignacionVariablesThis(a, e, aleft, aright);:}
+    | error:e PUNTO_COMA                    {:parser.syntax_error((Symbol) e);:}    
+    | error:e CORCHETE_C                    {:parser.syntax_error((Symbol) e);:}  
+;
+
+estructuras_p ::=
+    estructuras:a estructuras_p:e           {:RESULT = parser.msJP.simbolosReturn(e, a, aleft, aright);:}
+    |                                       {:RESULT = null;:}
+;
