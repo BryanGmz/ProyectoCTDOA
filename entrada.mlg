@@ -1,0 +1,192 @@
+%%VB
+
+Public Sub Saludo()
+    Dim FACTORIAL as Integer 
+    Console.write("Hola"+((FACTORIAL-1)*5)+"l")
+
+End Sub 
+
+
+Function Factorial(N As Integer) as integer
+    Dim sh As Integer
+    Dim Fact, Factorial, Num As Integer
+    Select CASE Num
+            CASE 8
+	Console.writeLine("Dine Grax")
+	Console.writeLine(9 + "Hola Como")	
+	Dim como as integer
+            CASE 9
+		dim como as integer
+            CASE else
+		dim como as integer
+	END select
+    Num = N
+    Do
+          Num = 6*9
+    loop while 6 < 8
+    If N = 0 and N = 6 or 6 < 5 or 7 = 8 Then
+	Num = 6
+	Factorial = 1
+    ELSEIF N > 1
+	Num  =  6 * 8
+    ELSEIF N <  1
+	Num = 8 - 5 * 6
+    Else
+        Fact = 1	
+        Factorial = Fact
+    End If
+    while 6<8 and   7 = 6
+              sh = 8 * 9
+        End While
+        FOR Id AS Integer = 0 TO 8 STEP 1
+            Console.WriteLine("Hello World")
+        NEXT Id
+    Dim hol As Integer
+    Num = hol +6*9/9
+    return  0
+End  Function
+
+%%JAVA
+public class algo {
+	int a;	
+
+	public algo(int a){	
+		this.a = a;	
+	}
+
+	public void  holaMundo() {
+		int a;
+		int b = 6*961-96;
+		System.out.println("asasasd");
+		//Inicio For
+		for (int i = 0; i < 6; i++) {
+			b = 87;
+		}
+		//Fin for
+		//While
+		while (a != 6) {
+			b = 6 + a;
+		}
+		//Fin while
+		//Do While
+		do {
+		
+		} while (a == 6);
+		//Fin do while
+		//incio switch
+		switch (a) {	
+			case 1:
+				System.out.println("Case 1");
+			break;
+			case 2:
+				System.out.println("Case 2");
+			break;
+			default:
+				System.out.println("Default");
+			break;
+		}
+		//Fin switch
+		//inicio if
+		if(a > 0) {
+			System.out.print("primer if");
+		} else if (a == 8 && a != 9) {	
+			System.out.println("primer else if");
+		} else {
+			System.out.print("primer else");
+		}
+		//Fin if
+	}
+
+	public void segundo() {
+		int a = 8;
+		System.out.println("metodo dos");
+	}
+}
+
+%%PY
+
+def edadmeses(edadNuevo, mesesNuevo):
+    nuevo = 6 * 93 + 54
+    if nuevo == 6:
+        print (nuevo)
+    elif nuevo > 6:
+        print ("hola")
+    else:
+        print ("como")
+    for hola in range (6, 8*2, 2):
+        print ("Hello World")
+    while hola == 6:
+        print ("ciclo")
+        hola = 6
+
+
+def edadAnios(edadNuevo, mesesNuevo):
+   edad = 6
+   meses = 9*644/623
+   a= 8
+   b = 8
+   edad = intinput("Ingrese su Edad: ")
+   meses = edad * 12
+   print("meses = ",meses)
+   if a == 8 or b == 6:
+       print ("Error, debes enviar dos números a la función")
+       while a == 7:
+           edad = 6
+       edad = 5
+   edad = 6
+
+%%PROGRAMA
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "VB"
+#include "PY"
+#include "JAVA.*"
+
+// Constantes
+const int constante1 = 10;
+
+// Variables globales
+int Arreglo1[1][4];
+
+void main()
+{
+  int base, exp, i, resultado;
+  JAVA.algo var1;
+  clrscr();
+  JAVA.var1.holaMundo();
+  printf("Bienvenido");
+
+  VB.Saludo();
+
+  printf("Ingrese el primer valor entero");
+  scanf("%d",&base);
+  printf("Ingrese el segudo valor entero");
+  scanf("%d",&exp);
+
+  // Factorial
+  resultado = VB.Factorial(i);
+   int a;
+  printf("El factorial de %d es %d", a, resultado);
+    
+  printf("Conversion de años a meses");
+
+  PY.edadmeses();
+
+  // Arreglo
+  Arreglo1[1][1] = 0;
+  
+  // inicio for
+  for(i = 0; i <= exp; i = i + 1)
+  {
+	resultado = resultado * base;
+	
+  } // fin for
+  
+  printf("%d ", base);
+  printf("^ %d",exp);
+  printf(" = %d",resultado);
+  int aux = getch();
+  resultado = getch();
+  getch();
+}
